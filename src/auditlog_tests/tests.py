@@ -492,13 +492,14 @@ class UnregisterTest(TestCase):
     def test_unregister_delete(self):
         """Deletion is not logged after unregistering."""
         # Get the object to work with
+        cnt = LogEntry.objects.count()
         obj = self.obj
 
         # Delete the object
         obj.delete()
 
         # Check for log entries
-        self.assertTrue(LogEntry.objects.count() == 0, msg="There are no log entries")
+        self.assertTrue(LogEntry.objects.count() == cnt, msg="There are no log entries")
 
 
 class ChoicesFieldModelTest(TestCase):
