@@ -6,7 +6,7 @@ from auditlog.diff import model_instance_diff
 from auditlog.models import LogEntry
 import logging
 
-logger = logging.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def create_log(instance, action, changes):
