@@ -15,7 +15,36 @@ from django.utils.safestring import mark_safe
 MAX = 75
 
 
-class LogEntryAdminMixin(object):
+class ReadOnlyAdminMixin(object):
+    """
+    Disables all editing capabilities.
+    """
+
+    # read only template
+    change_form_template = "admin/view_only.html"
+
+    def get_actions(self, request):
+        actions = super(ReadOnlyAdminMixin, self).get_actions(request)
+        del actions["delete_selected"]
+        return actions
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        pass
+
+    def delete_model(self, request, obj):
+        raise PermissionDenied(_('log entries must not be modified.'))
+
+    def save_related(self, request, form, formsets, change):
+        pass
+
+
+class LogEntryAdminMixin(ReadOnlyAdminMixin):
 
     def created(self, obj):
         return obj.timestamp.strftime('%Y-%m-%d %H:%M:%S')
@@ -28,8 +57,12 @@ class LogEntryAdminMixin(object):
             try:
                 link = urlresolvers.reverse(viewname, args=[obj.actor.id])
             except NoReverseMatch:
-                return u'%s' % (obj.actor)
-            return format_html(u'<a href="{}">{}</a>', link, obj.actor)
+                return mark_safe(
+                    u'%s' % (obj.actor)
+                )
+            return mark_safe(format_html(
+                u'<a href="{}">{}</a>', link, obj.actor
+            ))
 
         return 'system'
     user_url.short_description = 'User'
@@ -41,9 +74,11 @@ class LogEntryAdminMixin(object):
             args = [obj.object_pk] if obj.object_id is None else [obj.object_id]
             link = urlresolvers.reverse(viewname, args=args)
         except NoReverseMatch:
-            return obj.object_repr
+            return mark_safe(obj.object_repr)
         else:
-            return format_html(u'<a href="{}">{}</a>', link, obj.object_repr)
+            return mark_safe(format_html(
+                u'<a href="{}">{}</a>', link, obj.object_repr
+            ))
     resource_url.short_description = 'Resource'
 
     def msg_short(self, obj):
