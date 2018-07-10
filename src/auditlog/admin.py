@@ -55,7 +55,7 @@ class HistoryModelAdmin(LogEntryAdminMixin, admin.ModelAdmin):
                 'resource_url': self.resource_url(action),
                 'actor_url': self.user_url(action),
                 'created': created,
-                'url': audit_url(action, created),
+                'auditlog_url': audit_url(action, created),
                 'action_name': self.action_name(action),
 
                 # handy extra data to use in custom templates maybe.
