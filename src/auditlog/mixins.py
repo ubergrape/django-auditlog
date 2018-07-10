@@ -1,6 +1,8 @@
 import json
 
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
+
 try:
     from django.core import urlresolvers
 except ImportError:
