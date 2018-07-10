@@ -1,0 +1,12 @@
+{#template for read only view (remove edit/delete/save buttons and add back button instead)#}
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{# only go back, no save/change/... #}
+{% block submit_buttons_bottom %}
+{% include "admin/go_back.html" %}
+{% endblock %}
+
+{# history change view has no history button or we will create dark matter #}
+{% block object-tools-items %}
+{% endblock %}
