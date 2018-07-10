@@ -107,3 +107,13 @@ class LogEntryAdminMixin(object):
         msg += '</table>'
         return mark_safe(msg)
     msg.short_description = 'Changes'
+
+    def action_name(self, inst, *args, **kwargs):
+        description = str(inst)
+        action_parts = description.split(' ')
+
+        return "{action_name} {on_model}: {description}".format(
+            action_name=action_parts[0],
+            on_model=str(self.model.__name__).split('.')[-1],
+            description=" ".join(action_parts[1:]),
+        )
