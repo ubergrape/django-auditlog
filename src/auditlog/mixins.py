@@ -46,7 +46,7 @@ class ReadOnlyAdminMixin(object):
         pass
 
 
-class LogEntryAdminMixin(ReadOnlyAdminMixin):
+class LogEntryAdminMixin(object):
 
     def created(self, obj):
         return obj.timestamp.strftime('%Y-%m-%d %H:%M:%S')

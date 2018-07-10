@@ -1,5 +1,5 @@
 from auditlog.filters import ResourceTypeFilter
-from auditlog.mixins import LogEntryAdminMixin
+from auditlog.mixins import LogEntryAdminMixin, ReadOnlyAdminMixin
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 from auditlog.models import LogEntry
@@ -13,7 +13,7 @@ from django.utils.text import capfirst
 from django.utils.translation import gettext as _
 
 
-class LogEntryAdmin(LogEntryAdminMixin, admin.ModelAdmin):
+class LogEntryAdmin(ReadOnlyAdminMixin, LogEntryAdminMixin, admin.ModelAdmin):
     list_display = [
         'created', 'resource_url', 'action', 'msg_short', 'user_url'
     ]
