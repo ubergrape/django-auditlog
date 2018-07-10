@@ -1,10 +1,19 @@
+from auditlog.filters import ResourceTypeFilter
+from auditlog.mixins import LogEntryAdminMixin
+from django.urls import reverse
+from django.utils.translation import ugettext_lazy as _
+from auditlog.models import LogEntry
+from auditlog.registry import auditlog as auditlog_registry
 from django.contrib import admin
-from .models import LogEntry
-from .mixins import LogEntryAdminMixin
-from .filters import ResourceTypeFilter
+from django.contrib.admin.utils import unquote
+from django.core.exceptions import PermissionDenied
+from django.template.response import TemplateResponse
+from django.utils.safestring import mark_safe
+from django.utils.text import capfirst
+from django.utils.translation import gettext as _
 
 
-class LogEntryAdmin(LogEntryAdminMixin):
+class LogEntryAdmin(LogEntryAdminMixin, admin.ModelAdmin):
     list_display = [
         'created', 'resource_url', 'action', 'msg_short', 'user_url'
     ]
@@ -103,6 +112,27 @@ class HistoryModelAdmin(LogEntryAdminMixin, admin.ModelAdmin):
         return TemplateResponse(request, 'log/object_history.html', context)
 
 
+def fix_invalid_filters(request, fields=('_changelist_filters',)):
+    """
+    this method is a workaround for django passing invalid filters to
+    models they don't understand but really are into interpreting it.
+    its a hack but so is the whole django admin anyway.
+    :param request: the request object
+    :param fields: fields to be removed
+    :return: the fixed request object
+    """
+    remove = set()
+    for field in fields:
+        if field in request.GET:
+            remove.add(field)
+
+    mutable = request.GET._mutable
+    request.GET._mutable = True
+    [request.GET.pop(field, None) for field in remove]
+    request.GET._mutable = mutable
+    return request
+
+
 def auditlog(*models):
     """
     decorator for registering admin sites to audit logs.
@@ -161,6 +191,8 @@ def re_register(model, model_admin):
     """
     re-register a already registered modelAdmin for audiotlog and django admin
     by dynamically extending it from HistoryModelAdmin in case it is not yet.
+    make sure the auditlog app is the last one in loading order otherwise
+    you might experience a race condition for registering admin sites.
     :param model: django.db.models
     :param model_admin: model.admin
     :return: None
@@ -168,14 +200,8 @@ def re_register(model, model_admin):
     if not isinstance(model_admin, HistoryModelAdmin):
         model_admin = add_mixin(model_admin, HistoryModelAdmin)
 
-    try:
-        admin.site.unregister(model)
-    except NotRegistered:
-        pass
-    try:
-        admin.site.register(model, model_admin)
-    except AlreadyRegistered:
-        pass
+    admin.site.unregister(model)
+    admin.site.register(model, model_admin)
 
     auditlog_registry.register(model)
 

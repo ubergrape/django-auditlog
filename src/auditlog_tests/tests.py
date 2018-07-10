@@ -656,11 +656,11 @@ class AdminPanelTest(TestCase):
         res = self.client.get("/admin/auditlog/logentry/")
         assert res.status_code == 200
         res = self.client.get("/admin/auditlog/logentry/add/")
-        assert res.status_code == 200
+        assert res.status_code == 403  # no permission to manually add a a logentry.
         res = self.client.get("/admin/auditlog/logentry/{}/".format(log_pk), follow=True)
         assert res.status_code == 200
         res = self.client.get("/admin/auditlog/logentry/{}/delete/".format(log_pk))
-        assert res.status_code == 200
+        assert res.status_code == 403  # no permission to delete one as well.
         res = self.client.get("/admin/auditlog/logentry/{}/history/".format(log_pk))
         assert res.status_code == 200
 
