@@ -14,7 +14,7 @@ def create_log(instance, action, changes):
         return LogEntry.objects.log_create(
             instance, action=action, changes=changes
         )
-    except Excetion as ex:
+    except Exception as ex:
         logger.error(
             'Error saving aduitlog for models %s: %s',
             instance, ex
@@ -24,7 +24,7 @@ def create_log(instance, action, changes):
 def get_diff(m1, m2):
     try:
         return model_instance_diff(m1, m2)
-    except Excetion as ex:
+    except Exception as ex:
         logger.error(
             'Error getting diff between models %s for aduitlog: %s',
             m1 or m2, ex
