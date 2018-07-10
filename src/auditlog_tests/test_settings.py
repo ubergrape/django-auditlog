@@ -39,8 +39,12 @@ DATABASE_ROUTERS = ['auditlog_tests.router.PostgresRouter']
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': 'auditlog_tests.db',
+        'ENGINE': POSTGRES_DRIVER,
+        'NAME': 'auditlog_tests_db',
+        'USER': 'postgres',
+        'PASSWORD': '',
+        'HOST': '127.0.0.1',
+        'PORT': '5432',
     },
     'postgres': {
         'ENGINE': POSTGRES_DRIVER,
