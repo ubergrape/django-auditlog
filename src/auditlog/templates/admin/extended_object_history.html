@@ -1,0 +1,41 @@
+{# history table of an object #}
+{% extends "admin/view_only.html" %}
+{% load i18n admin_urls static admin_list %}
+{% block content %}
+    <div id="content-main">
+        <div class="module">
+        {% if action_list %}
+            <table id="change-history">
+                <thead>
+                <tr>
+                    <th scope="col">{% trans 'When' %}</th>
+                    <th scope="col">{% trans 'Who' %}</th>
+                    <th scope="col">{% trans 'What' %}</th>
+                    <th scope="col">{% trans 'Sumary' %}</th>
+                    <th scope="col">{% trans 'Remote Address' %}</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for action in action_list %}
+                <tr>
+                    <td>{{action.url}}</td>
+                    <td>{{action.actor_url}}</td>
+                    <td>{{action.action_name}}</td>
+                    <td>{{action.msg_short}}</td>
+                    <td>{{action.remote_addr}}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>{% trans "This object doesn't have a change history. It probably wasn't added via this admin site." %}</p>
+        {% endif %}
+        </div>
+    </div>
+    {#  no save/delete buttons, only a back button.  #}
+    {% block submit_buttons_bottom %}
+    {% include "admin/go_back.html" %}
+    {% endblock %}
+    {#  add pagination  #}
+    {% block pagination %}{% pagination cl %}{% endblock %}
+{% endblock %}

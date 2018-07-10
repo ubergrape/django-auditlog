@@ -39,7 +39,7 @@ class HistoryModelAdmin(LogEntryAdminMixin, admin.ModelAdmin):
     annotate extended log info into the "history" button of every model admin.
     overwrite the history from the normal log to the audit log's model.
     """
-    object_history_template = 'log/object_history.html'
+    object_history_template = 'admin/extended_object_history.html'
 
     # fields to in or exclude for audit tracking. either or, not booth
     log_include_fields = None
@@ -109,7 +109,7 @@ class HistoryModelAdmin(LogEntryAdminMixin, admin.ModelAdmin):
 
         request.current_app = self.admin_site.name
 
-        return TemplateResponse(request, 'log/object_history.html', context)
+        return TemplateResponse(request, self.object_history_template, context)
 
 
 def fix_invalid_filters(request, fields=('_changelist_filters',)):
