@@ -82,7 +82,16 @@ def get_field_value(obj, field):
     return value
 
 
-def model_instance_diff(old, new):
+def _intersect_update_fields(changed_fields, update_fields):
+    res = []
+    update_fields = list(update_fields)
+    for changed_field in list(changed_fields):
+        if changed_field.attname in update_fields:
+            res.append(changed_field)
+    return set(res)
+
+
+def model_instance_diff(old, new, fields=None):
     """
     Calculates the differences between two model instances. One of the instances may be ``None`` (i.e., a newly
     created model or deleted model). This will cause all fields with a value to have changed (from ``None``).
@@ -105,32 +114,34 @@ def model_instance_diff(old, new):
     diff = {}
 
     if old is not None and new is not None:
-        fields = set(old._meta.fields + new._meta.fields)
+        changed_fields = set(old._meta.fields + new._meta.fields)
+        if fields:
+            changed_fields = _intersect_update_fields(changed_fields, fields)
         model_fields = auditlog.get_model_fields(new._meta.model)
     elif old is not None:
-        fields = set(get_fields_in_model(old))
+        changed_fields = set(get_fields_in_model(old))
         model_fields = auditlog.get_model_fields(old._meta.model)
     elif new is not None:
-        fields = set(get_fields_in_model(new))
+        changed_fields = set(get_fields_in_model(new))
         model_fields = auditlog.get_model_fields(new._meta.model)
     else:
-        fields = set()
+        changed_fields = set()
         model_fields = None
 
     # Check if fields must be filtered
-    if model_fields and (model_fields['include_fields'] or model_fields['exclude_fields']) and fields:
+    if model_fields and (model_fields['include_fields'] or model_fields['exclude_fields']) and changed_fields:
         filtered_fields = []
         if model_fields['include_fields']:
-            filtered_fields = [field for field in fields
+            filtered_fields = [field for field in changed_fields
                                if field.name in model_fields['include_fields']]
         else:
-            filtered_fields = fields
+            filtered_fields = changed_fields
         if model_fields['exclude_fields']:
             filtered_fields = [field for field in filtered_fields
                                if field.name not in model_fields['exclude_fields']]
-        fields = filtered_fields
+        changed_fields = filtered_fields
 
-    for field in fields:
+    for field in changed_fields:
         old_value = get_field_value(old, field)
         new_value = get_field_value(new, field)
 
