@@ -82,11 +82,16 @@ def get_field_value(obj, field):
     return value
 
 
-def model_instance_diff(old, new):
+def _intersect_update_fields(changed_fields, update_fields):
+    return {f for f in changed_fields if f.attname in update_fields}
+
+
+def model_instance_diff(old, new, fields=None):
     """
     Calculates the differences between two model instances. One of the instances may be ``None`` (i.e., a newly
     created model or deleted model). This will cause all fields with a value to have changed (from ``None``).
 
+    :param fields: django update_fields for save method to limit diff to the actually updated fields.
     :param old: The old state of the model instance.
     :type old: Model
     :param new: The new state of the model instance.
