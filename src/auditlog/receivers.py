@@ -21,9 +21,9 @@ def create_log(instance, action, changes):
         )
 
 
-def get_diff(m1, m2):
+def get_diff(m1, m2, fields=None):
     try:
-        return model_instance_diff(m1, m2)
+        return model_instance_diff(m1, m2, fields)
     except Exception as ex:
         logger.error(
             'Error getting diff between models %s for aduitlog: %s',
@@ -59,7 +59,7 @@ def log_update(sender, instance, **kwargs):
         else:
             new = instance
 
-            changes = get_diff(old, new)
+            changes = get_diff(old, new, kwargs.get('update_fields', None))
             # Log an entry only if there are changes
             if changes:
                 return create_log(

@@ -17,6 +17,10 @@ from django.utils.translation import ugettext_lazy as _
 from django.contrib.postgres.fields import JSONField
 from dateutil import parser
 from dateutil.tz import gettz
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class LogEntryManager(models.Manager):
@@ -177,7 +181,11 @@ class LogEntry(models.Model):
     object_repr = models.TextField(verbose_name=_("object representation"))
     action = models.PositiveSmallIntegerField(choices=Action.choices, verbose_name=_("action"))
     changes = models.TextField(blank=True, verbose_name=_("change message"))
-    actor = models.ForeignKey(to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True, related_name='+', verbose_name=_("actor"))
+    actor = models.ForeignKey(
+        to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        blank=True, null=True, related_name='+', verbose_name=_("actor"),
+        db_constraint=False
+    )
     remote_addr = models.GenericIPAddressField(blank=True, null=True, verbose_name=_("remote address"))
     timestamp = models.DateTimeField(auto_now_add=True, verbose_name=_("timestamp"))
     additional_data = JSONField(blank=True, null=True, verbose_name=_("additional data"))
@@ -305,6 +313,24 @@ class LogEntry(models.Model):
             verbose_name = model_fields['mapping_fields'].get(field.name, getattr(field, 'verbose_name', field.name))
             changes_display_dict[verbose_name] = values_display
         return changes_display_dict
+
+    def set_meta(self):
+        from auditlog.middleware import threadlocal as audit_info
+        if hasattr(audit_info, 'auditlog'):
+            ip = audit_info.auditlog.get('remote_addr', None)
+            actor = audit_info.auditlog.get('actor', None)
+            if ip:
+                self.remote_addr = ip
+            if actor:
+                self.actor = actor
+
+    def save(self, *args, **kwargs):
+        try:
+            self.set_meta()
+        except Exception as ex:
+            logger.error('cannot save auditlog metadata (user/ip). %s', ex)
+
+        super(LogEntry, self).save(*args, **kwargs)
 
 
 class AuditlogHistoryField(GenericRelation):

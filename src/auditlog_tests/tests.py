@@ -3,9 +3,6 @@ import django
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.auth.models import User, AnonymousUser
-from django.core.exceptions import ValidationError
-from django.db.models.signals import pre_save
-from django.http import HttpResponse
 from django.test import TestCase, RequestFactory
 from django.utils import dateformat, formats, timezone
 from dateutil.tz import gettz
@@ -14,13 +11,19 @@ from auditlog.middleware import AuditlogMiddleware
 from auditlog.models import LogEntry
 from auditlog.registry import auditlog
 from auditlog_tests.models import SimpleModel, AltPrimaryKeyModel, UUIDPrimaryKeyModel, \
-    ProxyModel, SimpleIncludeModel, SimpleExcludeModel, SimpleMappingModel, RelatedModel, \
+    ProxyModel, SimpleIncludeModel, SimpleExcludeModel, SimpleMappingModel, \
     ManyRelatedModel, AdditionalDataIncludedModel, DateTimeFieldModel, ChoicesFieldModel, \
     CharfieldTextfieldModel, PostgresArrayFieldModel, NoDeleteHistoryModel
 from auditlog import compat
 
 
-class SimpleModelTest(TestCase):
+class TearDownMixin(TestCase):
+    def tearDown(self):
+        LogEntry.objects.all().delete()
+        super(TearDownMixin, self).tearDown()
+        
+
+class SimpleModelTest(TearDownMixin):
     def setUp(self):
         self.obj = SimpleModel.objects.create(text='I am not difficult.')
 
@@ -74,6 +77,23 @@ class SimpleModelTest(TestCase):
         self.setUp()
         self.test_create()
 
+    def test_update_fields(self):
+        """Updates are logged correctly."""
+        # Get the object to work with
+        obj = self.obj
+
+        # Change something
+        obj.boolean = True
+        obj.save(update_fields=['text'])
+
+        # Check for log entries
+        self.assertTrue(
+            obj.history.filter(action=LogEntry.Action.UPDATE).count() == 0,
+            msg="There is a log entry for 'UPDATE' even though the field was "
+                "not in update fields."
+        )
+
+
 
 class AltPrimaryKeyModelTest(SimpleModelTest):
     def setUp(self):
@@ -102,7 +122,7 @@ class ProxyModelTest(SimpleModelTest):
         self.obj = ProxyModel.objects.create(text='I am not what you think.')
 
 
-class ManyRelatedModelTest(TestCase):
+class ManyRelatedModelTest(TearDownMixin):
     """
     Test the behaviour of a many-to-many relationship.
     """
@@ -116,7 +136,7 @@ class ManyRelatedModelTest(TestCase):
         self.assertEqual(LogEntry.objects.get_for_objects(self.obj.related.all()).first(), self.rel_obj.history.first())
 
 
-class MiddlewareTest(TestCase):
+class MiddlewareTest(TearDownMixin):
     """
     Test the middleware responsible for connecting and disconnecting the signals used in automatic logging.
     """
@@ -135,10 +155,11 @@ class MiddlewareTest(TestCase):
         self.middleware.process_request(request)
 
         # Validate result
-        self.assertFalse(pre_save.has_listeners(LogEntry))
-
-        # Finalize transaction
-        self.middleware.process_exception(request, None)
+        from auditlog.middleware import threadlocal
+        # Validate result
+        self.assertEquals(
+            threadlocal.auditlog['actor'], None
+        )
 
     def test_request(self):
         """The actor will be logged when a user is logged in."""
@@ -147,43 +168,14 @@ class MiddlewareTest(TestCase):
         request.user = self.user
         # Run middleware
         self.middleware.process_request(request)
-
+        from auditlog.middleware import threadlocal
         # Validate result
-        self.assertTrue(pre_save.has_listeners(LogEntry))
-
-        # Finalize transaction
-        self.middleware.process_exception(request, None)
-
-    def test_response(self):
-        """The signal will be disconnected when the request is processed."""
-        # Create a request
-        request = self.factory.get('/')
-        request.user = self.user
-
-        # Run middleware
-        self.middleware.process_request(request)
-        self.assertTrue(pre_save.has_listeners(LogEntry))  # The signal should be present before trying to disconnect it.
-        self.middleware.process_response(request, HttpResponse())
-
-        # Validate result
-        self.assertFalse(pre_save.has_listeners(LogEntry))
-
-    def test_exception(self):
-        """The signal will be disconnected when an exception is raised."""
-        # Create a request
-        request = self.factory.get('/')
-        request.user = self.user
-
-        # Run middleware
-        self.middleware.process_request(request)
-        self.assertTrue(pre_save.has_listeners(LogEntry))  # The signal should be present before trying to disconnect it.
-        self.middleware.process_exception(request, ValidationError("Test"))
-
-        # Validate result
-        self.assertFalse(pre_save.has_listeners(LogEntry))
+        self.assertEquals(
+            threadlocal.auditlog['actor'], request.user
+        )
 
 
-class SimpeIncludeModelTest(TestCase):
+class SimpeIncludeModelTest(TearDownMixin):
     """Log only changes in include_fields"""
 
     def test_register_include_fields(self):
@@ -202,7 +194,7 @@ class SimpeIncludeModelTest(TestCase):
         self.assertTrue(sim.history.count() == 2, msg="There are two log entries")
 
 
-class SimpeExcludeModelTest(TestCase):
+class SimpeExcludeModelTest(TearDownMixin):
     """Log only changes that are not in exclude_fields"""
 
     def test_register_exclude_fields(self):
@@ -221,7 +213,7 @@ class SimpeExcludeModelTest(TestCase):
         self.assertTrue(sem.history.count() == 2, msg="There are two log entries")
 
 
-class SimpleMappingModelTest(TestCase):
+class SimpleMappingModelTest(TearDownMixin):
     """Diff displays fields as mapped field names where available through mapping_fields"""
 
     def test_register_mapping_fields(self):
@@ -241,7 +233,7 @@ class SimpleMappingModelTest(TestCase):
                              " and can be retrieved."))
 
 
-class AdditionalDataModelTest(TestCase):
+class AdditionalDataModelTest(TearDownMixin):
     """Log additional data if get_additional_data is defined in the model"""
 
     def test_model_without_additional_data(self):
@@ -266,7 +258,7 @@ class AdditionalDataModelTest(TestCase):
                         msg="Related model's id is logged")
 
 
-class DateTimeFieldModelTest(TestCase):
+class DateTimeFieldModelTest(TearDownMixin):
     """Tests if DateTimeField changes are recognised correctly"""
 
     utc_plus_one = timezone.get_fixed_timezone(datetime.timedelta(hours=1))
@@ -460,7 +452,7 @@ class DateTimeFieldModelTest(TestCase):
         dtm.save()
 
 
-class UnregisterTest(TestCase):
+class UnregisterTest(TearDownMixin):
     def setUp(self):
         auditlog.unregister(SimpleModel)
         self.obj = SimpleModel.objects.create(text='No history')
@@ -502,7 +494,7 @@ class UnregisterTest(TestCase):
         self.assertTrue(LogEntry.objects.count() == cnt, msg="There are no log entries")
 
 
-class ChoicesFieldModelTest(TestCase):
+class ChoicesFieldModelTest(TearDownMixin):
 
     def setUp(self):
         self.obj = ChoicesFieldModel.objects.create(
@@ -544,7 +536,7 @@ class ChoicesFieldModelTest(TestCase):
                         msg="The human readable text 'Red' is displayed.")
 
 
-class CharfieldTextfieldModelTest(TestCase):
+class CharfieldTextfieldModelTest(TearDownMixin):
 
     def setUp(self):
         self.PLACEHOLDER_LONGCHAR = "s" * 255
@@ -575,7 +567,7 @@ class CharfieldTextfieldModelTest(TestCase):
                         msg="The field should display the entire string because it is less than 140 characters")
 
 
-class PostgresArrayFieldModelTest(TestCase):
+class PostgresArrayFieldModelTest(TearDownMixin):
 
     def setUp(self):
         self.obj = PostgresArrayFieldModel.objects.create(
@@ -599,7 +591,7 @@ class PostgresArrayFieldModelTest(TestCase):
                         msg="The human readable text 'Green' is displayed.")
 
 
-class CompatibilityTest(TestCase):
+class CompatibilityTest(TearDownMixin):
     """Test case for compatibility functions."""
 
     def test_is_authenticated(self):
@@ -637,7 +629,7 @@ class CompatibilityTest(TestCase):
         assert compat.is_authenticated(self.user)
 
 
-class AdminPanelTest(TestCase):
+class AdminPanelTest(TearDownMixin):
     @classmethod
     def setUpTestData(cls):
         cls.username = "test_admin"
@@ -665,7 +657,7 @@ class AdminPanelTest(TestCase):
         assert res.status_code == 200
 
 
-class NoDeleteHistoryTest(TestCase):
+class NoDeleteHistoryTest(TearDownMixin):
     def test_delete_related(self):
         instance = SimpleModel.objects.create(integer=1)
         assert LogEntry.objects.all().count() == 1
